@@ -1,18 +1,30 @@
 from .postgresql import get_pool
-from quart import jsonify
+from quart import jsonify, request
 from datetime import datetime
+import bcrypt
+import hashlib
 
 subdomain = "supervend"
-pool = None
+db_name = "supervend"
+
+async def check_password():
+    name = request.headers.get("name").strip()
+    password = request.headers.get("password").strip()
+    if (len(name) > 30 or name == ""): return None
+    if (password == ""): return False
+    async with (await get_pool(db_name)).connection() as conn:
+        async with conn.cursor() as acurs:
+            await acurs.execute("SELECT * FROM users WHERE name=%s", (name,))
+            if (result := await acurs.fetchone()) != None:
+                pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
+                return bcrypt.checkpw(pw_hash, result[1].encode('utf-8'))
+            return None
 
 def init(app):
     @app.route('/get-products', subdomain = subdomain)
     async def get_products():
-        global pool
         result = []
-        if pool == None:
-            pool = await get_pool("supervend")
-        async with pool.connection() as conn:
+        async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute("SELECT * FROM products")
                 async for record in acurs:
@@ -31,3 +43,42 @@ def init(app):
                     result.append(dict_record)
         return jsonify(result)
 
+    @app.route('/users', subdomain = subdomain, methods=["GET", "PUT", "DELETE"])
+    async def user_action():
+        if request.method == "GET":
+            return await check_user()
+        elif request.method == "PUT":
+            return await add_user()
+        elif request.method == "DELETE":
+            return await delete_user()
+
+    async def check_user():
+        resp = await check_password()
+        if resp == None: 
+            return ("No such user", 400)
+        return str(int(resp))
+
+    async def add_user():
+        name = request.headers.get("name").strip()
+        password = request.headers.get("password").strip()
+        if (len(name) > 30 or name == "" or password == ""): return "0"
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("SELECT * FROM users WHERE name=%s", (name,))
+                if acurs.rowcount == 1: return "0"
+                pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
+                pw_salt_hash = bcrypt.hashpw(pw_hash, bcrypt.gensalt()).decode('utf-8')
+                await acurs.execute("INSERT INTO users VALUES (%s, %s)", (name, pw_salt_hash))
+                success = acurs.rowcount
+        return str(success)
+
+    async def delete_user():
+        resp = await check_password()
+        if resp == False: 
+            return ("Unauthorised", 401)
+        elif resp == None: 
+            return ("No such user", 400)
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("DELETE FROM users WHERE name=%s", (request.headers.get("name").strip(),))
+                return str(acurs.rowcount)
