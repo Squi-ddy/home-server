@@ -20,3 +20,6 @@ async def coro_close_pools():
     await asyncio.wait(list_coro_close_pools, return_when=asyncio.ALL_COMPLETED)
 
 atexit.register(close_pools)
+
+def init(app):
+    pass

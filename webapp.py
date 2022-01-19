@@ -1,17 +1,15 @@
 from quart import Quart, redirect, render_template
-import psycopg
-import modules.supervend
+from pathlib import Path
+import os
+import importlib
 
 app = Quart(__name__)
 app.config['SERVER_NAME'] = 'squiddy.me'
 
-@app.route('/', defaults={'path': ""}, subdomain = "www")
-@app.route('/<path>', subdomain = "www")
-async def direct(path):
-    return await redirect(f"https://squiddy.me/{path}")
+filedir = os.path.dirname(os.path.realpath(__file__))
 
-@app.route('/')
-async def base():
-    return await render_template("index.html")
-
-modules.supervend.init(app)
+for files in Path(filedir + '/modules').glob('*'):
+    file = files.resolve()
+    relpath = file.relative_to(Path(filedir + '/modules'))
+    if (relpath.suffix == '.py'):
+        importlib.import_module(f"modules.{relpath.with_suffix('')}").init(app)
