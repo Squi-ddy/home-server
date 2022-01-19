@@ -1,0 +1,16 @@
+#title {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+#title > text {
+    font-family: 'Source Sans Pro', sans-serif;
+    font-size: 40px;
+}
+
+body {
+    background-color: lightblue;
+}
