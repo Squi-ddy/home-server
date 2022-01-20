@@ -7,9 +7,8 @@ import hashlib
 subdomain = "supervend"
 db_name = "supervend"
 
-async def check_password():
-    name = request.headers.get("name").strip()
-    password = request.headers.get("password").strip()
+async def check_password(name):
+    password = request.headers.get("password")
     if (len(name) > 30 or name == ""): return None
     if (password == ""): return False
     async with (await get_pool(db_name)).connection() as conn:
@@ -43,24 +42,23 @@ def init(app):
                     result.append(dict_record)
         return jsonify(result)
 
-    @app.route('/users', subdomain = subdomain, methods=["GET", "PUT", "DELETE"])
-    async def user_action():
+    @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "PUT", "DELETE"])
+    async def user_action(username):
         if request.method == "GET":
-            return await check_user()
+            return await check_user(username)
         elif request.method == "PUT":
-            return await add_user()
+            return await add_user(username)
         elif request.method == "DELETE":
-            return await delete_user()
+            return await delete_user(username)
 
-    async def check_user():
-        resp = await check_password()
+    async def check_user(name):
+        resp = await check_password(name)
         if resp == None: 
             return ("No such user", 400)
         return str(int(resp))
 
-    async def add_user():
-        name = request.headers.get("name").strip()
-        password = request.headers.get("password").strip()
+    async def add_user(name):
+        password = request.headers.get("password")
         if (len(name) > 30 or name == "" or password == ""): return "0"
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -72,13 +70,13 @@ def init(app):
                 success = acurs.rowcount
         return str(success)
 
-    async def delete_user():
-        resp = await check_password()
+    async def delete_user(name):
+        resp = await check_password(name)
         if resp == False: 
             return ("Unauthorised", 401)
         elif resp == None: 
             return ("No such user", 400)
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute("DELETE FROM users WHERE name=%s", (request.headers.get("name").strip(),))
+                await acurs.execute("DELETE FROM users WHERE name=%s", (name,))
                 return str(acurs.rowcount)
