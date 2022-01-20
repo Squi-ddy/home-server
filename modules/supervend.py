@@ -8,7 +8,7 @@ subdomain = "supervend"
 db_name = "supervend"
 
 async def check_password(name):
-    password = request.headers.get("password")
+    password = request.headers.get("Password", default="")
     if (len(name) > 30 or name == ""): return None
     if (password == ""): return False
     async with (await get_pool(db_name)).connection() as conn:
@@ -42,7 +42,7 @@ def init(app):
                     result.append(dict_record)
         return jsonify(result)
 
-    @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "POST", "DELETE"])
+    @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "PUT", "POST", "DELETE"])
     async def user_action(username):
         username = username.strip()
         if request.method == "GET":
@@ -51,15 +51,19 @@ def init(app):
             return await add_user(username)
         elif request.method == "DELETE":
             return await delete_user(username)
+        elif request.method == "PUT":
+            return await modify_user(username)
 
     async def check_user(name):
         resp = await check_password(name)
-        if resp == None: 
+        if resp == False: 
+            return ("Unauthorised", 401)
+        elif resp == None: 
             return ("No such user", 404)
         return str(int(resp))
 
     async def add_user(name):
-        password = request.headers.get("password")
+        password = request.headers.get("Password", default="")
         if (len(name) > 30 or name == "" or password == ""): return ("Invalid", 400)
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -82,3 +86,19 @@ def init(app):
             async with conn.cursor() as acurs:
                 await acurs.execute("DELETE FROM users WHERE name=%s", (name,))
                 return str(acurs.rowcount)
+
+    async def modify_user(name):
+        password = request.headers.get("New-Password", default="")
+        if (password == ""): return ("Invalid", 400)
+        resp = await check_password(name)
+        if resp == False: 
+            return ("Unauthorised", 401)
+        elif resp == None: 
+            return ("No such user", 404)
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
+                pw_salt_hash = bcrypt.hashpw(pw_hash, bcrypt.gensalt()).decode('utf-8')
+                await acurs.execute("UPDATE users SET hash = %s WHERE name = %s", (pw_salt_hash, name))
+                success = acurs.rowcount
+        return str(success)
