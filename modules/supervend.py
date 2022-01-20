@@ -44,6 +44,7 @@ def init(app):
 
     @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "PUT", "DELETE"])
     async def user_action(username):
+        username = username.strip()
         if request.method == "GET":
             return await check_user(username)
         elif request.method == "PUT":
@@ -62,8 +63,6 @@ def init(app):
         if (len(name) > 30 or name == "" or password == ""): return "0"
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute("SELECT * FROM users WHERE name=%s", (name,))
-                if acurs.rowcount == 1: return "0"
                 pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
                 pw_salt_hash = bcrypt.hashpw(pw_hash, bcrypt.gensalt()).decode('utf-8')
                 await acurs.execute("INSERT INTO users VALUES (%s, %s)", (name, pw_salt_hash))
