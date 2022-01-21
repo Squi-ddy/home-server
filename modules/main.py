@@ -4,7 +4,7 @@ def init(app):
     @app.route('/', defaults={'path': ""}, subdomain = "www")
     @app.route('/<path>', subdomain = "www")
     async def direct(path):
-        return await redirect(f"https://squiddy.me/{path}")
+        return redirect(f"https://squiddy.me/{path}")
 
     @app.route('/')
     async def base():
