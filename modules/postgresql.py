@@ -12,16 +12,5 @@ async def get_pool(db_name):
         pools[db_name] = AsyncConnectionPool(f"user='postgres' password='{DATABASE_PASSWORD}' host='{DATABASE_URL}' dbname='{db_name}'")
     return pools[db_name]
 
-def close_pools():
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(coro_close_pools())
-
-async def coro_close_pools():
-    list_coro_close_pools = [pool.close() for pool in pools]
-    if (len(list_coro_close_pools) != 0):
-        await asyncio.wait(list_coro_close_pools, return_when=asyncio.ALL_COMPLETED)
-
-atexit.register(close_pools)
-
 def init(app):
     pass
