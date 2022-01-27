@@ -129,6 +129,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# The copying script
-copyscript.py
-.include
+# The updating script
+update.sh
