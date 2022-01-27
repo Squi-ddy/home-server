@@ -8,4 +8,4 @@ def init(app):
 
     @app.route('/')
     async def base():
-        return await render_template("index.html")
+        return "a"#await render_template("index.html")
