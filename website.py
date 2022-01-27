@@ -1,10 +1,11 @@
 from quart import Quart, redirect, render_template
 from pathlib import Path
+from settings import SERVER_NAME
 import os
 import importlib
 
 app = Quart(__name__)
-app.config['SERVER_NAME'] = 'squiddy.me'
+app.config['SERVER_NAME'] = SERVER_NAME
 
 filedir = os.path.dirname(os.path.realpath(__file__))
 

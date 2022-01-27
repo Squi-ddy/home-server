@@ -1,10 +1,11 @@
 from quart import redirect, render_template
+from settings import SERVER_NAME
 
 def init(app):
     @app.route('/', defaults={'path': ""}, subdomain = "www")
     @app.route('/<path>', subdomain = "www")
     async def direct(path):
-        return redirect(f"https://squiddy.me/{path}")
+        return redirect(f"https://{SERVER_NAME}/{path}")
 
     @app.route('/')
     async def base():
