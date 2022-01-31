@@ -19,6 +19,17 @@ async def check_password(name):
                 return bcrypt.checkpw(pw_hash, result[1].encode('utf-8'))
             return None
 
+def process_datetime(to_process):
+    time = process_time(to_process)
+    date = process_date(to_process)
+    return {"time": time, "date": date}
+
+def process_date(to_process):
+    return {'day': to_process.day, 'month':to_process.month, 'year':to_process.year}
+
+def process_time(to_process):
+    return {'hour':to_process.hour, 'minute':to_process.minute, 'second':to_process.second}
+
 def init(app):
     @app.route('/products/', subdomain = subdomain)
     async def get_products():
@@ -46,10 +57,57 @@ def init(app):
                 dict_record["temp"] = record[5]
                 dict_record["size"] = record[6]
                 dict_record["country"] = record[7]
-                dict_record["expiry"] = [record[8].day, record[8].month, record[8].year]
+                dict_record["expiry"] = process_date(record[8])
                 dict_record["stock"] = record[9]
                 dict_record["images"] = record[10]
         return jsonify(dict_record)
+
+    @app.route('/products/<string:product_id>/ratings/', subdomain = subdomain, methods=["GET", "POST"])
+    async def ratings(product_id):
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("SELECT * FROM products WHERE product_id = %s", (product_id,))
+                if (acurs.rowcount < 1): return ("No such product", 404)
+        if request.method == "GET":
+            return await get_ratings(product_id)
+        elif request.method == "POST":
+            return await post_rating(product_id)
+
+    async def get_ratings(product_id):
+        results = []
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("SELECT * FROM ratings WHERE product_id = %s", (product_id,))
+                async for record in acurs:
+                    dict_record = {}
+                    dict_record["user"] = record[0]
+                    dict_record["rating"] = record[1]
+                    dict_record["description"] = record[2]
+                    dict_record["time"] = process_datetime(record[3])
+                    dict_record["product_id"] = record[4]
+                    results.append(dict_record)
+        return jsonify({"ratings": results})
+
+    async def post_rating(product_id):
+        name = request.args.get("username", default="")
+        desc = request.args.get("description", default="")
+        rating = request.args.get("rating", default="")
+        if (desc == "" or name == "" or rating == ""): return ("Invalid", 400)
+        try:
+            rating = int(rating)
+        except ValueError:
+            return ("Invalid", 400)
+        resp = await check_password(name)
+        if resp == False: 
+            return ("Unauthorised", 401)
+        elif resp == None: 
+            return ("No such user", 404)
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("INSERT INTO ratings VALUES (%s, %s, %s, %s, %s)", 
+                    (name, rating, desc, datetime.now(), product_id))
+                return str(acurs.rowcount)
+
 
     @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "PUT", "POST", "DELETE"])
     async def user_action(username):
