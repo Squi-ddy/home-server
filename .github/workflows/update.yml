@@ -5,10 +5,19 @@ on:
     branches: [ main ]
     
 jobs:
-  update:
+  Update:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Tell the server to update
         run: |
           curl -X POST -H "Password: ${{ secrets.UPDATE_PASSWORD }}" https://squiddy.me/update
+          sleep 5
+
+      - name: Wait for update to apply
+        run: |
+          while [[ "$(curl -s -o /dev/null -I -L -w "%{http_code}" http://www.squiddy.me/)" != '200' ]]
+          do
+            sleep 15
+          done
