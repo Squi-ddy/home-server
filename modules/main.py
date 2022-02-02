@@ -1,5 +1,5 @@
 from quart import redirect, render_template
-from settings import SERVER_NAME, IS_HTTPS
+from settings import SERVER_NAME, IS_HTTPS, STATIC_SITE_NAME
 
 def init(app):
     @app.route('/', subdomain = "www")
@@ -10,4 +10,4 @@ def init(app):
 
     @app.route('/')
     async def base():
-        return await render_template("index.html")
+        return await render_template("index.html", static_site=STATIC_SITE_NAME)

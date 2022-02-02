@@ -1,12 +1,8 @@
-{% extends style.html %}
+{% extends "style.html" %}
 
-<html>
-    <head>
-        <title>A website</title>
-    </head>
-    <body>
-        <div class="main">
-            <text>Hey! A website!</text>
-        </div>
-    </body>
-</html>
+{% block title %}A website{% endblock %}
+{% block content %}
+<div class="main">
+    <text>Hey! A website!</text>
+</div>
+{% endblock %}
