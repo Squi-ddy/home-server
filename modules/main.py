@@ -11,3 +11,7 @@ def init(app):
     @app.route('/')
     async def base():
         return await render_template("index.html")
+
+    @app.route('/is-up/')
+    async def is_up():
+        return "1"
