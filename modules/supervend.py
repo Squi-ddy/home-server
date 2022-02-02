@@ -1,6 +1,7 @@
 from .postgresql import get_pool
-from quart import jsonify, request
+from quart import jsonify, request, redirect
 from datetime import datetime
+from settings import STATIC_IS_HTTPS, STATIC_SITE_NAME
 import bcrypt
 import hashlib
 
@@ -18,6 +19,33 @@ async def check_password(name):
                 pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
                 return bcrypt.checkpw(pw_hash, result[1].encode('utf-8'))
             return None
+
+async def modify_password(name, password):
+    resp = await check_password(name)
+    if resp == False: 
+        print(resp)
+        return ("Unauthorised", 401)
+    elif resp == None: 
+        return ("No such user", 404)
+    if (password == ""): return True
+    async with (await get_pool(db_name)).connection() as conn:
+        async with conn.cursor() as acurs:
+            pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
+            pw_salt_hash = bcrypt.hashpw(pw_hash, bcrypt.gensalt()).decode('utf-8')
+            await acurs.execute("UPDATE users SET hash = %s WHERE name = %s", (pw_salt_hash, name))
+            success = acurs.rowcount
+    return bool(success)
+
+async def add_money(name, money):
+    try:
+        money = int(money)
+    except ValueError:
+        return ("Invalid amount", 400)
+    if (money < 0): return ("Invalid amount", 400)
+    async with (await get_pool(db_name)).connection() as conn:
+        async with conn.cursor() as acurs:
+            await acurs.execute("UPDATE users SET wallet = wallet + %s WHERE name = %s", (money, name))
+            return str(acurs.rowcount)
 
 def process_datetime(to_process):
     time = process_time(to_process)
@@ -41,11 +69,17 @@ def init(app):
                     result.append({"id": record[0], "name": record[1], "description": record[2]})
         return jsonify({"products": result})
 
-    @app.route('/products/<product_id>/', subdomain = subdomain)
+    @app.route('/products/<string:product_id>/', subdomain = subdomain, methods = ["GET", "POST"])
+    async def product_api(product_id):
+        if request.method == "GET":
+            return await get_product_by_id(product_id)
+        elif request.method == "POST":
+            return await buy_product(product_id)
+
     async def get_product_by_id(product_id):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute("SELECT * FROM products WHERE product_id = %s", (str(product_id),))
+                await acurs.execute("SELECT * FROM products WHERE product_id = %s", (product_id,))
                 if (acurs.rowcount < 1): return ("No such product", 404)
                 record = await acurs.fetchone()
                 dict_record = {}
@@ -61,6 +95,33 @@ def init(app):
                 dict_record["stock"] = record[9]
                 dict_record["images"] = record[10]
         return jsonify(dict_record)
+
+    async def buy_product(product_id):
+        try:
+            qty = int(request.args.get("quantity", default="0"))
+        except ValueError:
+            return ("Invalid quantity", 400)
+        if (qty < 0): return ("Invalid quantity", 400)
+        name = request.args.get("username", default="")
+        resp = await check_password(name)
+        if resp == False: 
+            return ("Unauthorised", 401)
+        elif resp == None: 
+            return ("No such user", 404)
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute("SELECT price, stock FROM products WHERE product_id = %s", (product_id,))
+                if (acurs.rowcount < 1): return ("No such product", 404)
+                row = await acurs.fetchone()
+                price, stock = row
+                if stock < qty: return ("Not enough stock", 400)
+                await acurs.execute("SELECT wallet FROM users WHERE name = %s", (name,))
+                wallet = (await acurs.fetchone())[0]
+                if price * qty > wallet: return ("Not enough money", 400)
+                await acurs.execute("UPDATE users SET wallet = wallet - %s WHERE name = %s", (price * qty, name))
+                await acurs.execute("UPDATE products SET stock = stock - %s WHERE product_id = %s", (qty, product_id))
+        return '1'
+
 
     @app.route('/products/<string:product_id>/ratings/', subdomain = subdomain, methods=["GET", "POST"])
     async def ratings(product_id):
@@ -109,7 +170,7 @@ def init(app):
                 return str(acurs.rowcount)
 
 
-    @app.route('/users/<username>/', subdomain = subdomain, methods=["GET", "PUT", "POST", "DELETE"])
+    @app.route('/users/<string:username>/', subdomain = subdomain, methods=["GET", "PUT", "POST", "DELETE"])
     async def user_action(username):
         username = username.strip()
         if request.method == "GET":
@@ -156,16 +217,24 @@ def init(app):
 
     async def modify_user(name):
         password = request.headers.get("New-Password", default="")
-        if (password == ""): return ("Invalid", 400)
-        resp = await check_password(name)
-        if resp == False: 
-            return ("Unauthorised", 401)
-        elif resp == None: 
-            return ("No such user", 404)
+        res = await modify_password(name, password)
+        print(type(res))
+        if (res != True): return (res if res != False else '0')
+        money = request.args.get("money", default="0")
+        res = await add_money(name, money)
+        return res
+
+    @app.route('/categories/', subdomain = subdomain)
+    async def get_categories():
+        result = []
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                pw_hash = hashlib.sha512(password.encode('utf-8')).hexdigest().encode('utf-8')
-                pw_salt_hash = bcrypt.hashpw(pw_hash, bcrypt.gensalt()).decode('utf-8')
-                await acurs.execute("UPDATE users SET hash = %s WHERE name = %s", (pw_salt_hash, name))
-                success = acurs.rowcount
-        return str(success)
+                await acurs.execute("SELECT * FROM categories")
+                async for record in acurs:
+                    result.append({"short_name": record[0], "full_name": record[1]})
+        return jsonify(result)
+
+    @app.route('/images/<string:image_name>/', subdomain = subdomain)
+    async def redir_image(image_name):
+        protocol = 'https' if STATIC_IS_HTTPS else 'http'
+        return redirect(f'{protocol}://{STATIC_SITE_NAME}/supervend/images/{image_name}')
