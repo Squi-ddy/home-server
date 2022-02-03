@@ -232,7 +232,7 @@ def init(app):
                 await acurs.execute("SELECT * FROM categories")
                 async for record in acurs:
                     result.append({"short_name": record[0], "full_name": record[1]})
-        return jsonify(result)
+        return jsonify({"categories": result})
 
     @app.route('/images/<string:image_name>/', subdomain = subdomain)
     async def redir_image(image_name):
