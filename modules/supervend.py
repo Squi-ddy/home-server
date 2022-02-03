@@ -61,12 +61,14 @@ def process_time(to_process):
 def init(app):
     @app.route('/products/', subdomain = subdomain)
     async def get_products():
-        result = []
+        result = {}
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute("SELECT * FROM products")
                 async for record in acurs:
-                    result.append({"id": record[0], "name": record[1], "description": record[2]})
+                    if record[0][0:2] not in result:
+                        result[record[0][0:2]] = []
+                    result[record[0][0:2]].append({"id": record[0], "name": record[1], "description": record[2]})
         return jsonify({"products": result})
 
     @app.route('/products/<string:product_id>/', subdomain = subdomain, methods = ["GET", "POST"])
