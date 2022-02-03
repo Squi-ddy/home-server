@@ -85,7 +85,7 @@ def init(app):
                 dict_record["description"] = record[2]
                 dict_record["company"] = record[3]
                 dict_record["price"] = record[4]
-                dict_record["temp"] = record[5]
+                dict_record["temperature"] = record[5]
                 dict_record["size"] = record[6]
                 dict_record["country"] = record[7]
                 dict_record["expiry"] = process_date(record[8])
