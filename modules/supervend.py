@@ -104,7 +104,7 @@ def init(app):
             async with conn.cursor() as acurs:
                 await acurs.execute(
                     """
-                    SELECT product_id, name, description, category
+                    SELECT product_id, name, description, category, preview
                     FROM products
                     WHERE category = COALESCE(%s, category)
                     """,
@@ -117,6 +117,7 @@ def init(app):
                             "name": record[1],
                             "description": record[2],
                             "category": record[3],
+                            "preview": record[4]
                         }
                     )
         return jsonify(result)
@@ -146,6 +147,7 @@ def init(app):
                         "stock": record[9],
                         "images": record[10],
                         "category": record[11],
+                        "preview": record[12]
                     }
                 )
 
