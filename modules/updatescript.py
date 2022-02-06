@@ -1,13 +1,6 @@
-import subprocess
-import os
-from quart import url_for, request
-from settings import UPDATE_PASSWORD
+ISort running...
+Skipped 2 files
 
-def init(app):
-    @app.route('/update', methods = ["POST","GET"])
-    async def updater():
-        if (request.method == "GET"): return url_for("base")
-        password = request.headers.get("Password", default="")
-        if (password != UPDATE_PASSWORD): return ("Unauthorised", 401)
-        subprocess.Popen("/usr/bin/sudo /usr/bin/systemctl start website-updater", shell=True)
-        return "1"
+Black running...
+
+Flake8 running...
