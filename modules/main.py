@@ -1,6 +1,13 @@
-ISort running...
-Skipped 2 files
+from quart import redirect, render_template
+from settings import SERVER_NAME, IS_HTTPS, STATIC_SITE_NAME
 
-Black running...
+def init(app):
+    @app.route('/', subdomain = "www")
+    @app.route('/<path:path>', subdomain = "www")
+    async def direct(path = ""):
+        protocol = 'https' if IS_HTTPS else 'http'
+        return redirect(f"{protocol}://{SERVER_NAME}/{path}")
 
-Flake8 running...
+    @app.route('/')
+    async def base():
+        return await render_template("index.html", static_site=STATIC_SITE_NAME)

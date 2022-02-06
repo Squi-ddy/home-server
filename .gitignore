@@ -129,5 +129,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# The formatting script
-format.sh
+# The updating script
+update.sh
