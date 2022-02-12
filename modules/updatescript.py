@@ -12,7 +12,7 @@ def init(app):
             return url_for("base")
         password = request.headers.get("Password", default="")
         if password != UPDATE_PASSWORD:
-            return ("Unauthorised", 401)
+            return "Unauthorised", 401
         subprocess.Popen(
             "/usr/bin/sudo /usr/bin/systemctl start website-updater",
             shell=True,

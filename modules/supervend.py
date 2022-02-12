@@ -40,7 +40,7 @@ async def check_password():
 async def modify_password(name, password):
     resp = await check_password()
     if resp is None or resp != name:
-        return ("Unauthorised", 401)
+        return "Unauthorised", 401
     if password == "":
         return True
     async with (await get_pool(db_name)).connection() as conn:
@@ -61,9 +61,9 @@ async def add_money(name, money):
     try:
         money = int(money)
     except ValueError:
-        return ("Invalid amount", 400)
+        return "Invalid amount", 400
     if money < 0:
-        return ("Invalid amount", 400)
+        return "Invalid amount", 400
     async with (await get_pool(db_name)).connection() as conn:
         async with conn.cursor() as acurs:
             await acurs.execute(
@@ -132,7 +132,7 @@ def init(app):
                     (product_id,),
                 )
                 if acurs.rowcount < 1:
-                    return ("No such product", 404)
+                    return "No such product", 404
                 record = await acurs.fetchone()
                 return jsonify(
                     {
@@ -165,7 +165,7 @@ def init(app):
                     (product_id,),
                 )
                 if acurs.rowcount < 1:
-                    return ("No such product", 404)
+                    return "No such product", 404
         if request.method == "GET":
             return await get_ratings(product_id)
         elif request.method == "POST":
@@ -196,10 +196,10 @@ def init(app):
         desc = data.get("description", "")
         rating = data.get("rating", -1)
         if desc == "" or rating < 0 or not isinstance(rating, int):
-            return ("Invalid", 400)
+            return "Invalid", 400
         resp = await check_password()
         if resp is None:
-            return ("Unauthorised", 401)
+            return "Unauthorised", 401
         name = resp
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -241,7 +241,7 @@ def init(app):
     async def check_user(name):
         resp = await check_password()
         if resp is None or resp != name:
-            return ("Unauthorised", 401)
+            return "Unauthorised", 401
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -254,12 +254,12 @@ def init(app):
         data = await request.json
         password = data.get("password", "")
         if len(name) > 30 or name == "" or password == "":
-            return ("Invalid", 400)
+            return "Invalid", 400
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute("SELECT * FROM users WHERE name=%s", (name,))
                 if acurs.rowcount > 0:
-                    return ("User already exists", 400)
+                    return "User already exists", 400
                 pw_hash = (
                     hashlib.sha512(password.encode("utf-8")).hexdigest().encode("utf-8")
                 )
@@ -273,7 +273,7 @@ def init(app):
     async def delete_user(name):
         resp = await check_password()
         if resp is None or resp != name:
-            return ("Unauthorised", 401)
+            return "Unauthorised", 401
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute("DELETE FROM users WHERE name=%s", (name,))
@@ -301,14 +301,14 @@ def init(app):
     async def buy_product(username):
         resp = await check_password()
         if resp is None or resp != username:
-            return ("Unauthorised", 401)
+            return "Unauthorised", 401
         data = await request.json
         total = 0
         orders = []
         for order in data:
             qty = order.get("quantity", 0)
             if not isinstance(qty, int) or qty < 0:
-                return ("Invalid quantity", 400)
+                return "Invalid quantity", 400
             product_id = order.get("product_id", "")
             orders.append((product_id, qty))
             async with (await get_pool(db_name)).connection() as conn:
@@ -318,11 +318,11 @@ def init(app):
                         (product_id,),
                     )
                     if acurs.rowcount < 1:
-                        return ("No such product", 404)
+                        return "No such product", 404
                     row = await acurs.fetchone()
                     price, stock = row
                     if stock < qty:
-                        return ("Not enough stock", 400)
+                        return "Not enough stock", 400
                     total += price * qty
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -331,7 +331,7 @@ def init(app):
                 )
                 wallet = (await acurs.fetchone())[0]
                 if total > wallet:
-                    return ("Not enough money", 400)
+                    return "Not enough money", 400
                 await acurs.execute(
                     "UPDATE users SET wallet = wallet - %s WHERE name = %s",
                     (total, username),
@@ -343,10 +343,11 @@ def init(app):
                         "UPDATE products SET stock = stock - %s WHERE product_id = %s",
                         (qty, product_id),
                     )
-        receipt = {}
-        receipt["total"] = total
-        receipt["balance"] = wallet - total
-        receipt["order"] = data
+        receipt = {
+            "total": total,
+            "balance": wallet - total,
+            "order": data
+        }
         return jsonify(receipt)
 
     @app.route("/categories/", subdomain=subdomain)
