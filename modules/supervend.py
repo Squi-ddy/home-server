@@ -250,8 +250,7 @@ def init(app):
                             }
                         )
                         if acurs.rowcount
-                        else "Invalid",
-                        400,
+                        else ("Invalid", 400)
                     )
                 else:
                     return "Invalid", 400
