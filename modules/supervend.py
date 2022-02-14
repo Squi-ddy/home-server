@@ -185,15 +185,23 @@ def init(app):
             return await post_rating(product_id)
 
     async def get_ratings(product_id):
-        results = []
+        results = {"reviews": []}
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
+                await acurs.execute(
+                    "SELECT rating, rating_ct FROM products WHERE product_id = %s",
+                    (product_id,),
+                )
+                if acurs.rowcount < 1:
+                    return "No such product", 404
+                record = await acurs.fetchone()
+                results["summary"] = {"rating_total": record[0], "count": record[1]}
                 await acurs.execute(
                     "SELECT * FROM ratings WHERE product_id = %s",
                     (product_id,),
                 )
                 async for record in acurs:
-                    results.append(
+                    results["reviews"].append(
                         {
                             "user": record[0],
                             "rating": record[1],
@@ -202,6 +210,7 @@ def init(app):
                             "product_id": record[4],
                         }
                     )
+
         return jsonify(results)
 
     async def post_rating(product_id):
