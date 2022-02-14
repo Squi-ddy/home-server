@@ -76,7 +76,10 @@ async def add_money(name, money):
 def process_datetime(to_process):
     time = process_time(to_process)
     date = process_date(to_process)
-    return {"time": time, "date": date}
+    datetime = {}
+    datetime.update(time)
+    datetime.update(date)
+    return datetime
 
 
 def process_date(to_process):
