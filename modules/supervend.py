@@ -104,7 +104,15 @@ def init(app):
             async with conn.cursor() as acurs:
                 await acurs.execute(
                     """
-                    SELECT product_id, name, description, category, preview, price
+                    SELECT
+                        product_id,
+                        name,
+                        description,
+                        category,
+                        preview,
+                        price,
+                        rating,
+                        rating_ct
                     FROM products
                     WHERE category = COALESCE(%s, category)
                     """,
@@ -118,7 +126,8 @@ def init(app):
                             "description": record[2],
                             "category": record[3],
                             "preview": record[4],
-                            "price": record[5]
+                            "price": record[5],
+                            "ratings": {"rating_total": record[6], "count": record[7]},
                         }
                     )
         return jsonify(result)
@@ -148,7 +157,8 @@ def init(app):
                         "stock": record[9],
                         "images": record[10],
                         "category": record[11],
-                        "preview": record[12]
+                        "preview": record[12],
+                        "ratings": {"rating_total": record[13], "count": record[14]},
                     }
                 )
 
@@ -208,19 +218,31 @@ def init(app):
                     "INSERT INTO ratings VALUES (%s, %s, %s, %s, %s)",
                     (name, rating, desc, time, product_id),
                 )
-                return (
-                    jsonify(
-                        {
-                            "user": name,
-                            "rating": rating,
-                            "description": desc,
-                            "time": process_datetime(time),
-                            "product_id": product_id,
-                        }
+                if acurs.rowcount:
+                    await acurs.execute(
+                        """
+                        UPDATE products
+                        SET rating = rating + %s, rating_ct = rating_ct + 1
+                        WHERE product_id = %s
+                        """,
+                        (rating, product_id),
                     )
-                    if acurs.rowcount
-                    else ("Invalid", 400)
-                )
+                    return (
+                        jsonify(
+                            {
+                                "user": name,
+                                "rating": rating,
+                                "description": desc,
+                                "time": process_datetime(time),
+                                "product_id": product_id,
+                            }
+                        )
+                        if acurs.rowcount
+                        else "Invalid",
+                        400,
+                    )
+                else:
+                    return "Invalid", 400
 
     @app.route(
         "/users/<string:username>/",
@@ -343,11 +365,7 @@ def init(app):
                         "UPDATE products SET stock = stock - %s WHERE product_id = %s",
                         (qty, product_id),
                     )
-        receipt = {
-            "total": total,
-            "balance": wallet - total,
-            "order": data
-        }
+        receipt = {"total": total, "balance": wallet - total, "order": data}
         return jsonify(receipt)
 
     @app.route("/categories/", subdomain=subdomain)
