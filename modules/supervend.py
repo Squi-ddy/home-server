@@ -130,7 +130,7 @@ def init(app):
                             "category": record[3],
                             "preview": record[4],
                             "price": record[5],
-                            "ratings": {"rating_total": record[6], "count": record[7]},
+                            "rating": {"rating_total": record[6], "count": record[7]},
                         }
                     )
         return jsonify(result)
@@ -161,7 +161,7 @@ def init(app):
                         "images": record[10],
                         "category": record[11],
                         "preview": record[12],
-                        "ratings": {"rating_total": record[13], "count": record[14]},
+                        "rating": {"rating_total": record[13], "count": record[14]},
                     }
                 )
 
