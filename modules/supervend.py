@@ -130,7 +130,7 @@ def init(app):
                             "category": record[3],
                             "preview": record[4],
                             "price": record[5],
-                            "rating": {"rating_total": record[6], "count": record[7]},
+                            "rating": {"total": record[6], "count": record[7]},
                         }
                     )
         return jsonify(result)
@@ -161,7 +161,7 @@ def init(app):
                         "images": record[10],
                         "category": record[11],
                         "preview": record[12],
-                        "rating": {"rating_total": record[13], "count": record[14]},
+                        "rating": {"total": record[13], "count": record[14]},
                     }
                 )
 
@@ -195,7 +195,7 @@ def init(app):
                 if acurs.rowcount < 1:
                     return "No such product", 404
                 record = await acurs.fetchone()
-                results["summary"] = {"rating_total": record[0], "count": record[1]}
+                results["summary"] = {"total": record[0], "count": record[1]}
                 await acurs.execute(
                     "SELECT * FROM ratings WHERE product_id = %s",
                     (product_id,),
