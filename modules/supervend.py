@@ -24,7 +24,7 @@ async def check_password():
         return None
     async with (await get_pool(db_name)).connection() as conn:
         async with conn.cursor() as acurs:
-            await acurs.execute("SELECT * FROM users WHERE name=%s", (username,))
+            await acurs.execute("SELECT name FROM users WHERE name=%s", (username,))
             if (result := await acurs.fetchone()) is not None:
                 pw_hash = (
                     hashlib.sha512(password.encode("utf-8")).hexdigest().encode("utf-8")
@@ -140,7 +140,26 @@ def init(app):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
-                    "SELECT * FROM products WHERE product_id = %s",
+                    """
+                    SELECT
+                        product_id,
+                        category,
+                        name,
+                        description,
+                        company,
+                        price,
+                        temp,
+                        size,
+                        country,
+                        expiry,
+                        stock,
+                        preview,
+                        images,
+                        rating,
+                        rating_ct
+                    FROM products
+                    WHERE product_id = %s
+                    """,
                     (product_id,),
                 )
                 if acurs.rowcount < 1:
@@ -149,18 +168,18 @@ def init(app):
                 return jsonify(
                     {
                         "id": record[0],
-                        "name": record[1],
-                        "description": record[2],
-                        "company": record[3],
-                        "price": record[4],
-                        "temperature": record[5],
-                        "size": record[6],
-                        "country": record[7],
-                        "expiry": process_date(record[8]),
-                        "stock": record[9],
-                        "images": record[10],
-                        "category": record[11],
-                        "preview": record[12],
+                        "category": record[1],
+                        "name": record[2],
+                        "description": record[3],
+                        "company": record[4],
+                        "price": record[5],
+                        "temperature": record[6],
+                        "size": record[7],
+                        "country": record[8],
+                        "expiry": process_date(record[9]),
+                        "stock": record[10],
+                        "preview": record[11],
+                        "images": record[12],
                         "rating": {"total": record[13], "count": record[14]},
                     }
                 )
@@ -174,7 +193,7 @@ def init(app):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
-                    "SELECT * FROM products WHERE product_id = %s",
+                    "SELECT product_id FROM products WHERE product_id = %s",
                     (product_id,),
                 )
                 if acurs.rowcount < 1:
@@ -197,17 +216,26 @@ def init(app):
                 record = await acurs.fetchone()
                 results["summary"] = {"total": record[0], "count": record[1]}
                 await acurs.execute(
-                    "SELECT * FROM ratings WHERE product_id = %s",
+                    """
+                    SELECT
+                       product_id,
+                       name,
+                       rating,
+                       content,
+                       time
+                    FROM ratings
+                    WHERE product_id = %s
+                    """,
                     (product_id,),
                 )
                 async for record in acurs:
                     results["reviews"].append(
                         {
-                            "user": record[0],
-                            "rating": record[1],
-                            "description": record[2],
-                            "time": process_datetime(record[3]),
-                            "product_id": record[4],
+                            "product_id": record[0],
+                            "user": record[1],
+                            "rating": record[2],
+                            "description": record[3],
+                            "time": process_datetime(record[4]),
                         }
                     )
 
@@ -290,7 +318,7 @@ def init(app):
             return "Invalid", 400
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute("SELECT * FROM users WHERE name=%s", (name,))
+                await acurs.execute("SELECT name FROM users WHERE name=%s", (name,))
                 if acurs.rowcount > 0:
                     return "User already exists", 400
                 pw_hash = (
@@ -384,7 +412,7 @@ def init(app):
         result = []
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute("SELECT * FROM categories")
+                await acurs.execute("SELECT short_name, full_name FROM categories")
                 async for record in acurs:
                     result.append({"short_name": record[0], "full_name": record[1]})
         return jsonify(result)
