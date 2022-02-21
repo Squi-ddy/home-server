@@ -110,7 +110,7 @@ def init(app):
                     SELECT
                         product_id,
                         name,
-                        description,
+
                         category,
                         preview,
                         price,
@@ -126,11 +126,11 @@ def init(app):
                         {
                             "id": record[0],
                             "name": record[1],
-                            "description": record[2],
-                            "category": record[3],
-                            "preview": record[4],
-                            "price": record[5],
-                            "rating": {"total": record[6], "count": record[7]},
+                  
+                            "category": record[2],
+                            "preview": record[3],
+                            "price": record[4],
+                            "rating": {"total": record[5], "count": record[6]},
                         }
                     )
         return jsonify(result)
