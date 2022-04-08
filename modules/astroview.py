@@ -24,14 +24,14 @@ async def check_password():
         return None
     async with (await get_pool(db_name)).connection() as conn:
         async with conn.cursor() as acurs:
-            await acurs.execute("SELECT name FROM users WHERE name=%s", (username,))
+            await acurs.execute("SELECT hash FROM users WHERE name=%s", (username,))
             if (result := await acurs.fetchone()) is not None:
                 pw_hash = (
                     hashlib.sha512(password.encode("utf-8")).hexdigest().encode("utf-8")
                 )
                 return (
                     username
-                    if bcrypt.checkpw(pw_hash, result[1].encode("utf-8"))
+                    if bcrypt.checkpw(pw_hash, result[0].encode("utf-8"))
                     else None
                 )
             return None
