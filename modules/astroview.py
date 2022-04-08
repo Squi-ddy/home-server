@@ -88,7 +88,7 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
-    async def ratings(page_number):
+    async def av_ratings(page_number):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -191,7 +191,7 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "PATCH", "POST", "DELETE"],
     )
-    async def user_action(username):
+    async def av_user_action(username):
         username = username.strip()
         if request.method == "GET":
             return await check_user(username)
