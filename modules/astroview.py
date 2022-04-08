@@ -214,7 +214,7 @@ def init(app):
 
     async def add_user(name):
         data = await request.json
-        password = data.get("password", "")
+        password = str(data.get("password", ""))
         if len(name) > 30 or name == "" or password == "":
             return "Invalid", 400
         async with (await get_pool(db_name)).connection() as conn:
