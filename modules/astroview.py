@@ -308,7 +308,7 @@ def init(app):
                 )
 
     @app.route("/pages/number/<int:page_number>/link", subdomain=subdomain)
-    async def redirect_page_by_name(page_number):
+    async def redirect_page_by_number(page_number):
         protocol = "https" if STATIC_IS_HTTPS else "http"
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:

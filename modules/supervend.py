@@ -126,7 +126,6 @@ def init(app):
                         {
                             "id": record[0],
                             "name": record[1],
-                  
                             "category": record[2],
                             "preview": record[3],
                             "price": record[4],
