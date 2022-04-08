@@ -24,14 +24,14 @@ async def check_password():
         return None
     async with (await get_pool(db_name)).connection() as conn:
         async with conn.cursor() as acurs:
-            await acurs.execute("SELECT name FROM users WHERE name=%s", (username,))
+            await acurs.execute("SELECT hash FROM users WHERE name=%s", (username,))
             if (result := await acurs.fetchone()) is not None:
                 pw_hash = (
                     hashlib.sha512(password.encode("utf-8")).hexdigest().encode("utf-8")
                 )
                 return (
                     username
-                    if bcrypt.checkpw(pw_hash, result[1].encode("utf-8"))
+                    if bcrypt.checkpw(pw_hash, result[0].encode("utf-8"))
                     else None
                 )
             return None
@@ -110,7 +110,7 @@ def init(app):
                     SELECT
                         product_id,
                         name,
-                        description,
+
                         category,
                         preview,
                         price,
@@ -126,11 +126,11 @@ def init(app):
                         {
                             "id": record[0],
                             "name": record[1],
-                            "description": record[2],
-                            "category": record[3],
-                            "preview": record[4],
-                            "price": record[5],
-                            "rating": {"total": record[6], "count": record[7]},
+                  
+                            "category": record[2],
+                            "preview": record[3],
+                            "price": record[4],
+                            "rating": {"total": record[5], "count": record[6]},
                         }
                     )
         return jsonify(result)
