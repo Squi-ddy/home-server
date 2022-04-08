@@ -1,7 +1,4 @@
-from modules import main
-from modules import supervend
-from modules import updatescript
-from modules import astroview
+from modules import astroview, main, supervend, updatescript
 
 
 def init_all(app):
