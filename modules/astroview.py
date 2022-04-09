@@ -103,7 +103,7 @@ def init(app):
             return await post_page_rating(page_number)
 
     async def get_page_ratings(page_number):
-        results = {"reviews": []}
+        results = []
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -120,7 +120,7 @@ def init(app):
                     (page_number,),
                 )
                 async for record in acurs:
-                    results["reviews"].append(
+                    results.append(
                         {
                             "rating_id": record[0],
                             "page": record[1],
@@ -174,7 +174,7 @@ def init(app):
             return await post_star_rating(star_number)
 
     async def get_star_ratings(star_number):
-        results = {"reviews": []}
+        results = []
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -191,7 +191,7 @@ def init(app):
                     (star_number,),
                 )
                 async for record in acurs:
-                    results["reviews"].append(
+                    results.append(
                         {
                             "rating_id": record[0],
                             "star": record[1],
