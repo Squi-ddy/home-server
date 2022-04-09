@@ -145,7 +145,7 @@ def init(app):
             async with conn.cursor() as acurs:
                 time = datetime.now()
                 await acurs.execute(
-                    "INSERT INTO page_ratings VALUES (%s, %s, %s, %s) RETURNING id",
+                    "INSERT INTO page_ratings(name, content, time, page) VALUES (%s, %s, %s, %s) RETURNING id",
                     (name, desc, time, page_number),
                 )
                 return (
@@ -216,7 +216,7 @@ def init(app):
             async with conn.cursor() as acurs:
                 time = datetime.now()
                 await acurs.execute(
-                    "INSERT INTO star_ratings VALUES (%s, %s, %s, %s) RETURNING id",
+                    "INSERT INTO star_ratings(name, content, time, star) VALUES (%s, %s, %s, %s) RETURNING id",
                     (name, desc, time, star_number),
                 )
                 return (
