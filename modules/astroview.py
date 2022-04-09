@@ -88,7 +88,7 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
-    async def av_ratings(page_number):
+    async def av_page_ratings(page_number):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -96,34 +96,25 @@ def init(app):
                     (page_number,),
                 )
                 if acurs.rowcount < 1:
-                    return "No such product", 404
+                    return "No such page", 404
         if request.method == "GET":
-            return await get_ratings(page_number)
+            return await get_page_ratings(page_number)
         elif request.method == "POST":
-            return await post_rating(page_number)
+            return await post_page_rating(page_number)
 
-    async def get_ratings(page_number):
+    async def get_page_ratings(page_number):
         results = {"reviews": []}
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT rating, rating_ct FROM pages WHERE id = %s",
-                    (page_number,),
-                )
-                if acurs.rowcount < 1:
-                    return "No such product", 404
-                record = await acurs.fetchone()
-                results["summary"] = {"total": record[0], "count": record[1]}
                 await acurs.execute(
                     """
                     SELECT
                        id,
                        page,
                        name,
-                       rating,
                        content,
                        time
-                    FROM ratings
+                    FROM page_ratings
                     WHERE page = %s
                     """,
                     (page_number,),
@@ -134,19 +125,17 @@ def init(app):
                             "rating_id": record[0],
                             "page": record[1],
                             "user": record[2],
-                            "rating": record[3],
-                            "description": record[4],
-                            "time": process_datetime(record[5]),
+                            "description": record[3],
+                            "time": process_datetime(record[4]),
                         }
                     )
 
         return jsonify(results)
 
-    async def post_rating(page_number):
+    async def post_page_rating(page_number):
         data = await request.json
         desc = data.get("description", "")
-        rating = data.get("rating", -1)
-        if desc == "" or rating < 0 or not isinstance(rating, int):
+        if desc == "":
             return "Invalid", 400
         resp = await check_password()
         if resp is None:
@@ -156,35 +145,93 @@ def init(app):
             async with conn.cursor() as acurs:
                 time = datetime.now()
                 await acurs.execute(
-                    "INSERT INTO ratings VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (name, desc, time, page_number, rating),
+                    "INSERT INTO page_ratings VALUES (%s, %s, %s, %s) RETURNING id",
+                    (name, desc, time, page_number),
                 )
-                if acurs.rowcount:
-                    record = await acurs.fetchone()
-                    await acurs.execute(
-                        """
-                        UPDATE pages
-                        SET rating = rating + %s, rating_ct = rating_ct + 1
-                        WHERE id = %s
-                        """,
-                        (rating, page_number),
+                return (
+                    jsonify(
+                        {
+                            "rating_id": record[0],
+                            "user": name,
+                            "description": desc,
+                            "time": process_datetime(time),
+                            "page": page_number,
+                        }
                     )
-                    return (
-                        jsonify(
-                            {
-                                "rating_id": record[0],
-                                "user": name,
-                                "rating": rating,
-                                "description": desc,
-                                "time": process_datetime(time),
-                                "page": page_number,
-                            }
-                        )
-                        if acurs.rowcount
-                        else ("Invalid", 400)
+                    if (record := await acurs.fetchone()) is not None
+                    else ("Invalid", 400)
+                )
+
+    @app.route(
+        "/stars/<int:star_number>/ratings/",
+        subdomain=subdomain,
+        methods=["GET", "POST"],
+    )
+    async def av_page_ratings(star_number):
+        if request.method == "GET":
+            return await get_star_ratings(star_number)
+        elif request.method == "POST":
+            return await post_star_rating(star_number)
+
+    async def get_star_ratings(star_number):
+        results = {"reviews": []}
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute(
+                    """
+                    SELECT
+                       id,
+                       star,
+                       name,
+                       content,
+                       time
+                    FROM star_ratings
+                    WHERE star = %s
+                    """,
+                    (star_number,),
+                )
+                async for record in acurs:
+                    results["reviews"].append(
+                        {
+                            "rating_id": record[0],
+                            "star": record[1],
+                            "user": record[2],
+                            "description": record[3],
+                            "time": process_datetime(record[4]),
+                        }
                     )
-                else:
-                    return "Invalid", 400
+
+        return jsonify(results)
+
+    async def post_star_rating(star_number):
+        data = await request.json
+        desc = data.get("description", "")
+        if desc == "":
+            return "Invalid", 400
+        resp = await check_password()
+        if resp is None:
+            return "Unauthorised", 401
+        name = resp
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                time = datetime.now()
+                await acurs.execute(
+                    "INSERT INTO star_ratings VALUES (%s, %s, %s, %s) RETURNING id",
+                    (name, desc, time, star_number),
+                )
+                return (
+                    jsonify(
+                        {
+                            "rating_id": record[0],
+                            "user": name,
+                            "description": desc,
+                            "time": process_datetime(time),
+                            "star": star_number,
+                        }
+                    )
+                    if (record := await acurs.fetchone()) is not None
+                    else ("Invalid", 400)
+                )
 
     @app.route(
         "/users/<string:username>/",
@@ -252,7 +299,7 @@ def init(app):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
-                    "SELECT id, name, file_name, rating, rating_ct FROM pages WHERE name = %s",
+                    "SELECT id, name, file_name, rating_ct FROM pages WHERE name = %s",
                     (page_name,),
                 )
                 return (
@@ -261,8 +308,7 @@ def init(app):
                             "page_number": record[0],
                             "name": record[1],
                             "file_name": record[2],
-                            "rating": record[3],
-                            "rating_ct": record[4],
+                            "rating_ct": record[3],
                         }
                     )
                     if (record := await acurs.fetchone()) is not None
@@ -274,7 +320,7 @@ def init(app):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
-                    "SELECT id, name, file_name, rating, rating_ct FROM pages WHERE id = %s",
+                    "SELECT id, name, file_name, rating_ct FROM pages WHERE id = %s",
                     (page_number,),
                 )
                 return (
@@ -283,8 +329,7 @@ def init(app):
                             "page_number": record[0],
                             "name": record[1],
                             "file_name": record[2],
-                            "rating": record[3],
-                            "rating_ct": record[4],
+                            "rating_ct": record[3],
                         }
                     )
                     if (record := await acurs.fetchone()) is not None
