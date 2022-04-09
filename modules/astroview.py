@@ -234,6 +234,30 @@ def init(app):
                 )
 
     @app.route(
+        "/pages/",
+        subdomain=subdomain
+    )
+    async def get_pages():
+        results = {}
+        async with (await get_pool(db_name)).connection() as conn:
+            async with conn.cursor() as acurs:
+                await acurs.execute(
+                    "SELECT * FROM pages"
+                )
+                async for record in acurs:
+                    if record[4] not in results:
+                        results[record[4]] = []
+                    results[record[4]].append({
+                        "id": record[0],
+                        "name": record[1],
+                        "file_name": record[2],
+                        "rating_ct": record[3],
+                        "category": record[4]
+                    })
+
+        return jsonify(results)
+
+    @app.route(
         "/users/<string:username>/",
         subdomain=subdomain,
         methods=["GET", "PATCH", "POST", "DELETE"],
@@ -294,27 +318,6 @@ def init(app):
         res = await modify_password(name, password)
         return jsonify({"name": name}) if res else ("Invalid", 400)
 
-    @app.route("/pages/name/<string:page_name>/", subdomain=subdomain)
-    async def get_page_by_name(page_name):
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT id, name, file_name, rating_ct FROM pages WHERE name = %s",
-                    (page_name,),
-                )
-                return (
-                    jsonify(
-                        {
-                            "page_number": record[0],
-                            "name": record[1],
-                            "file_name": record[2],
-                            "rating_ct": record[3],
-                        }
-                    )
-                    if (record := await acurs.fetchone()) is not None
-                    else ("Page not found", 404)
-                )
-
     @app.route("/pages/number/<int:page_number>/", subdomain=subdomain)
     async def get_page_by_number(page_number):
         async with (await get_pool(db_name)).connection() as conn:
@@ -331,22 +334,6 @@ def init(app):
                             "file_name": record[2],
                             "rating_ct": record[3],
                         }
-                    )
-                    if (record := await acurs.fetchone()) is not None
-                    else ("Page not found", 404)
-                )
-
-    @app.route("/pages/name/<string:page_name>/link", subdomain=subdomain)
-    async def redirect_page_by_name(page_name):
-        protocol = "https" if STATIC_IS_HTTPS else "http"
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT file_name FROM pages WHERE name = %s", (page_name,)
-                )
-                return (
-                    redirect(
-                        f"{protocol}://{STATIC_SITE_NAME}/astroview/pages/{record[0]}"
                     )
                     if (record := await acurs.fetchone()) is not None
                     else ("Page not found", 404)
