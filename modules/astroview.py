@@ -167,7 +167,7 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
-    async def av_page_ratings(star_number):
+    async def av_star_ratings(star_number):
         if request.method == "GET":
             return await get_star_ratings(star_number)
         elif request.method == "POST":
