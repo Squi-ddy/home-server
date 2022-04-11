@@ -139,7 +139,6 @@ def init(app):
                     )
         return result
 
-
     @app.route("/products/<string:product_id>/", subdomain=subdomain)
     async def get_product_by_id(product_id):
         return get_product_from_db_by_id(product_id)
@@ -213,8 +212,8 @@ def init(app):
                 return await get_ratings(product_id)
             elif request.method == "POST":
                 return await post_rating(product_id)
-        return wrapped(product_id)
 
+        return wrapped(product_id)
 
     async def get_ratings(product_id):
         results = {"reviews": []}
@@ -425,6 +424,7 @@ def init(app):
                         )
             receipt = {"total": total, "balance": wallet - total, "order": data}
             return jsonify(receipt)
+
         return wrapped(username)
 
     @app.route("/categories/", subdomain=subdomain)
@@ -438,6 +438,7 @@ def init(app):
                     async for record in acurs:
                         result.append({"short_name": record[0], "full_name": record[1]})
             return jsonify(result)
+
         return wrapped()
 
     @app.route("/images/<string:image_name>/", subdomain=subdomain)

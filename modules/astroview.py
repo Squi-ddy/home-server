@@ -103,6 +103,7 @@ def init(app):
                 return await get_page_ratings(page_number)
             elif request.method == "POST":
                 return await post_page_rating(page_number)
+
         return wrapped()
 
     async def get_page_ratings(page_number):
@@ -177,6 +178,7 @@ def init(app):
                 return await get_star_ratings(star_number)
             elif request.method == "POST":
                 return await post_star_rating(star_number)
+
         return wrapped()
 
     async def get_star_ratings(star_number):
@@ -261,6 +263,7 @@ def init(app):
                         )
 
             return jsonify(results)
+
         return wrapped()
 
     @app.route(
@@ -280,6 +283,7 @@ def init(app):
                 return await delete_user(username_stripped)
             elif request.method == "PATCH":
                 return await modify_user(username_stripped)
+
         return wrapped()
 
     async def check_user(name):
@@ -349,6 +353,7 @@ def init(app):
                         if (record := await acurs.fetchone()) is not None
                         else ("Page not found", 404)
                     )
+
         return wrapped()
 
     @app.route("/pages/number/<int:page_number>/link", subdomain=subdomain)
@@ -368,4 +373,5 @@ def init(app):
                         if (record := await acurs.fetchone()) is not None
                         else ("Page not found", 404)
                     )
+
         return wrapped()
