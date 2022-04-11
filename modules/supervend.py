@@ -7,12 +7,13 @@ from quart import jsonify, redirect, request
 
 from settings import STATIC_IS_HTTPS, STATIC_SITE_NAME
 
-from .postgresql import get_pool
+from .postgresql import get_pool, retry
 
 subdomain = "supervend"
 db_name = "supervend"
 
 
+@retry(db_name)
 async def check_password():
     authorisation = request.headers.get("Authorization", default="")
     params = authorisation.split()
@@ -37,6 +38,7 @@ async def check_password():
             return None
 
 
+@retry(db_name)
 async def modify_password(name, password):
     resp = await check_password()
     if resp is None or resp != name:
@@ -57,6 +59,7 @@ async def modify_password(name, password):
     return bool(success)
 
 
+@retry(db_name)
 async def add_money(name, money):
     try:
         money = int(money)
@@ -100,6 +103,7 @@ def process_time(to_process):
 
 def init(app):
     @app.route("/products/", subdomain=subdomain)
+    @retry(db_name)
     async def get_products():
         category = request.args.get("category", default=None)
         result = []
@@ -135,6 +139,7 @@ def init(app):
         return jsonify(result)
 
     @app.route("/products/<string:product_id>/", subdomain=subdomain)
+    @retry(db_name)
     async def get_product_by_id(product_id):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -188,6 +193,7 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
+    @retry(db_name)
     async def ratings(product_id):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -202,6 +208,7 @@ def init(app):
         elif request.method == "POST":
             return await post_rating(product_id)
 
+    @retry(db_name)
     async def get_ratings(product_id):
         results = {"reviews": []}
         async with (await get_pool(db_name)).connection() as conn:
@@ -240,6 +247,7 @@ def init(app):
 
         return jsonify(results)
 
+    @retry(db_name)
     async def post_rating(product_id):
         data = await request.json
         desc = data.get("description", "")
@@ -298,6 +306,7 @@ def init(app):
         elif request.method == "PATCH":
             return await modify_user(username)
 
+    @retry(db_name)
     async def check_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -310,6 +319,7 @@ def init(app):
                 row = await acurs.fetchone()
                 return jsonify({"name": row[0], "balance": row[1]})
 
+    @retry(db_name)
     async def add_user(name):
         data = await request.json
         password = str(data.get("password", ""))
@@ -330,6 +340,7 @@ def init(app):
                 success = acurs.rowcount
         return jsonify({"name": name, "balance": 0}) if success else ("Invalid", 400)
 
+    @retry(db_name)
     async def delete_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -339,6 +350,7 @@ def init(app):
                 await acurs.execute("DELETE FROM users WHERE name=%s", (name,))
                 return ("", 204) if acurs.rowcount else ("Invalid", 400)
 
+    @retry(db_name)
     async def modify_user(name):
         data = await request.json
         password = data.get("password", "")
@@ -358,6 +370,7 @@ def init(app):
                 )
 
     @app.route("/users/<string:username>/buy/", subdomain=subdomain, methods=["POST"])
+    @retry(db_name)
     async def buy_product(username):
         resp = await check_password()
         if resp is None or resp != username:
@@ -407,6 +420,7 @@ def init(app):
         return jsonify(receipt)
 
     @app.route("/categories/", subdomain=subdomain)
+    @retry(db_name)
     async def get_categories():
         result = []
         async with (await get_pool(db_name)).connection() as conn:
@@ -417,6 +431,7 @@ def init(app):
         return jsonify(result)
 
     @app.route("/images/<string:image_name>/", subdomain=subdomain)
+    @retry(db_name)
     async def redir_image(image_name):
         protocol = "https" if STATIC_IS_HTTPS else "http"
         return redirect(
