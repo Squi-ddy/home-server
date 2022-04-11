@@ -13,7 +13,6 @@ subdomain = "supervend"
 db_name = "supervend"
 
 
-@retry(db_name)
 async def check_password():
     authorisation = request.headers.get("Authorization", default="")
     params = authorisation.split()
@@ -38,7 +37,6 @@ async def check_password():
             return None
 
 
-@retry(db_name)
 async def modify_password(name, password):
     resp = await check_password()
     if resp is None or resp != name:
@@ -103,9 +101,13 @@ def process_time(to_process):
 
 def init(app):
     @app.route("/products/", subdomain=subdomain)
-    @retry(db_name)
     async def get_products():
         category = request.args.get("category", default=None)
+        result = get_products_from_db(category)
+        return jsonify(result)
+
+    @retry(db_name)
+    async def get_products_from_db(category):
         result = []
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
@@ -114,7 +116,6 @@ def init(app):
                     SELECT
                         product_id,
                         name,
-
                         category,
                         preview,
                         price,
@@ -136,11 +137,15 @@ def init(app):
                             "rating": {"total": record[5], "count": record[6]},
                         }
                     )
-        return jsonify(result)
+        return result
+
 
     @app.route("/products/<string:product_id>/", subdomain=subdomain)
-    @retry(db_name)
     async def get_product_by_id(product_id):
+        return get_product_from_db_by_id(product_id)
+
+    @retry(db_name)
+    async def get_product_from_db_by_id(product_id):
         async with (await get_pool(db_name)).connection() as conn:
             async with conn.cursor() as acurs:
                 await acurs.execute(
@@ -193,22 +198,24 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
-    @retry(db_name)
     async def ratings(product_id):
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT product_id FROM products WHERE product_id = %s",
-                    (product_id,),
-                )
-                if acurs.rowcount < 1:
-                    return "No such product", 404
-        if request.method == "GET":
-            return await get_ratings(product_id)
-        elif request.method == "POST":
-            return await post_rating(product_id)
+        @retry(db_name)
+        async def wrapped(product_id):
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        "SELECT product_id FROM products WHERE product_id = %s",
+                        (product_id,),
+                    )
+                    if acurs.rowcount < 1:
+                        return "No such product", 404
+            if request.method == "GET":
+                return await get_ratings(product_id)
+            elif request.method == "POST":
+                return await post_rating(product_id)
+        return wrapped(product_id)
 
-    @retry(db_name)
+
     async def get_ratings(product_id):
         results = {"reviews": []}
         async with (await get_pool(db_name)).connection() as conn:
@@ -247,7 +254,6 @@ def init(app):
 
         return jsonify(results)
 
-    @retry(db_name)
     async def post_rating(product_id):
         data = await request.json
         desc = data.get("description", "")
@@ -298,13 +304,13 @@ def init(app):
     async def user_action(username):
         username = username.strip()
         if request.method == "GET":
-            return await check_user(username)
+            return check_user(username)
         elif request.method == "POST":
-            return await add_user(username)
+            return add_user(username)
         elif request.method == "DELETE":
-            return await delete_user(username)
+            return delete_user(username)
         elif request.method == "PATCH":
-            return await modify_user(username)
+            return modify_user(username)
 
     @retry(db_name)
     async def check_user(name):
@@ -370,68 +376,71 @@ def init(app):
                 )
 
     @app.route("/users/<string:username>/buy/", subdomain=subdomain, methods=["POST"])
-    @retry(db_name)
     async def buy_product(username):
-        resp = await check_password()
-        if resp is None or resp != username:
-            return "Unauthorised", 401
-        data = await request.json
-        total = 0
-        orders = []
-        for order in data:
-            qty = order.get("quantity", 0)
-            if not isinstance(qty, int) or qty < 0:
-                return "Invalid quantity", 400
-            product_id = order.get("product_id", "")
-            orders.append((product_id, qty))
+        @retry(db_name)
+        async def wrapped(username):
+            resp = await check_password()
+            if resp is None or resp != username:
+                return "Unauthorised", 401
+            data = await request.json
+            total = 0
+            orders = []
+            for order in data:
+                qty = order.get("quantity", 0)
+                if not isinstance(qty, int) or qty < 0:
+                    return "Invalid quantity", 400
+                product_id = order.get("product_id", "")
+                orders.append((product_id, qty))
+                async with (await get_pool(db_name)).connection() as conn:
+                    async with conn.cursor() as acurs:
+                        await acurs.execute(
+                            "SELECT price, stock FROM products WHERE product_id = %s",
+                            (product_id,),
+                        )
+                        if acurs.rowcount < 1:
+                            return "No such product", 404
+                        row = await acurs.fetchone()
+                        price, stock = row
+                        if stock < qty:
+                            return "Not enough stock", 400
+                        total += price * qty
             async with (await get_pool(db_name)).connection() as conn:
                 async with conn.cursor() as acurs:
                     await acurs.execute(
-                        "SELECT price, stock FROM products WHERE product_id = %s",
-                        (product_id,),
+                        "SELECT wallet FROM users WHERE name = %s", (username,)
                     )
-                    if acurs.rowcount < 1:
-                        return "No such product", 404
-                    row = await acurs.fetchone()
-                    price, stock = row
-                    if stock < qty:
-                        return "Not enough stock", 400
-                    total += price * qty
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT wallet FROM users WHERE name = %s", (username,)
-                )
-                wallet = (await acurs.fetchone())[0]
-                if total > wallet:
-                    return "Not enough money", 400
-                await acurs.execute(
-                    "UPDATE users SET wallet = wallet - %s WHERE name = %s",
-                    (total, username),
-                )
-        for product_id, qty in orders:
-            async with (await get_pool(db_name)).connection() as conn:
-                async with conn.cursor() as acurs:
+                    wallet = (await acurs.fetchone())[0]
+                    if total > wallet:
+                        return "Not enough money", 400
                     await acurs.execute(
-                        "UPDATE products SET stock = stock - %s WHERE product_id = %s",
-                        (qty, product_id),
+                        "UPDATE users SET wallet = wallet - %s WHERE name = %s",
+                        (total, username),
                     )
-        receipt = {"total": total, "balance": wallet - total, "order": data}
-        return jsonify(receipt)
+            for product_id, qty in orders:
+                async with (await get_pool(db_name)).connection() as conn:
+                    async with conn.cursor() as acurs:
+                        await acurs.execute(
+                            "UPDATE products SET stock = stock - %s WHERE product_id = %s",
+                            (qty, product_id),
+                        )
+            receipt = {"total": total, "balance": wallet - total, "order": data}
+            return jsonify(receipt)
+        return wrapped(username)
 
     @app.route("/categories/", subdomain=subdomain)
-    @retry(db_name)
     async def get_categories():
-        result = []
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute("SELECT short_name, full_name FROM categories")
-                async for record in acurs:
-                    result.append({"short_name": record[0], "full_name": record[1]})
-        return jsonify(result)
+        @retry(db_name)
+        async def wrapped():
+            result = []
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute("SELECT short_name, full_name FROM categories")
+                    async for record in acurs:
+                        result.append({"short_name": record[0], "full_name": record[1]})
+            return jsonify(result)
+        return wrapped()
 
     @app.route("/images/<string:image_name>/", subdomain=subdomain)
-    @retry(db_name)
     async def redir_image(image_name):
         protocol = "https" if STATIC_IS_HTTPS else "http"
         return redirect(

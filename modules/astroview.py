@@ -13,7 +13,6 @@ subdomain = "astroview"
 db_name = "astroview"
 
 
-@retry(db_name)
 async def check_password():
     authorisation = request.headers.get("Authorization", default="")
     params = authorisation.split()
@@ -38,7 +37,6 @@ async def check_password():
             return None
 
 
-@retry(db_name)
 async def modify_password(name, password):
     resp = await check_password()
     if resp is None or resp != name:
@@ -90,22 +88,23 @@ def init(app):
         subdomain=subdomain,
         methods=["GET", "POST"],
     )
-    @retry(db_name)
     async def av_page_ratings(page_number):
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT id FROM pages WHERE id = %s",
-                    (page_number,),
-                )
-                if acurs.rowcount < 1:
-                    return "No such page", 404
-        if request.method == "GET":
-            return await get_page_ratings(page_number)
-        elif request.method == "POST":
-            return await post_page_rating(page_number)
+        @retry(db_name)
+        async def wrapped():
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        "SELECT id FROM pages WHERE id = %s",
+                        (page_number,),
+                    )
+                    if acurs.rowcount < 1:
+                        return "No such page", 404
+            if request.method == "GET":
+                return await get_page_ratings(page_number)
+            elif request.method == "POST":
+                return await post_page_rating(page_number)
+        return wrapped()
 
-    @retry(db_name)
     async def get_page_ratings(page_number):
         results = []
         async with (await get_pool(db_name)).connection() as conn:
@@ -136,7 +135,6 @@ def init(app):
 
         return jsonify(results)
 
-    @retry(db_name)
     async def post_page_rating(page_number):
         data = await request.json
         desc = data.get("description", "")
@@ -173,12 +171,14 @@ def init(app):
         methods=["GET", "POST"],
     )
     async def av_star_ratings(star_number):
-        if request.method == "GET":
-            return await get_star_ratings(star_number)
-        elif request.method == "POST":
-            return await post_star_rating(star_number)
+        @retry(db_name)
+        async def wrapped():
+            if request.method == "GET":
+                return await get_star_ratings(star_number)
+            elif request.method == "POST":
+                return await post_star_rating(star_number)
+        return wrapped()
 
-    @retry(db_name)
     async def get_star_ratings(star_number):
         results = []
         async with (await get_pool(db_name)).connection() as conn:
@@ -209,7 +209,6 @@ def init(app):
 
         return jsonify(results)
 
-    @retry(db_name)
     async def post_star_rating(star_number):
         data = await request.json
         desc = data.get("description", "")
@@ -241,26 +240,28 @@ def init(app):
                 )
 
     @app.route("/pages/", subdomain=subdomain)
-    @retry(db_name)
     async def get_pages():
-        results = {}
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute("SELECT * FROM pages")
-                async for record in acurs:
-                    if record[4] not in results:
-                        results[record[4]] = []
-                    results[record[4]].append(
-                        {
-                            "id": record[0],
-                            "name": record[1],
-                            "file_name": record[2],
-                            "rating_ct": record[3],
-                            "category": record[4],
-                        }
-                    )
+        @retry(db_name)
+        async def wrapped():
+            results = {}
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute("SELECT * FROM pages")
+                    async for record in acurs:
+                        if record[4] not in results:
+                            results[record[4]] = []
+                        results[record[4]].append(
+                            {
+                                "id": record[0],
+                                "name": record[1],
+                                "file_name": record[2],
+                                "rating_ct": record[3],
+                                "category": record[4],
+                            }
+                        )
 
-        return jsonify(results)
+            return jsonify(results)
+        return wrapped()
 
     @app.route(
         "/users/<string:username>/",
@@ -268,17 +269,19 @@ def init(app):
         methods=["GET", "PATCH", "POST", "DELETE"],
     )
     async def av_user_action(username):
-        username = username.strip()
-        if request.method == "GET":
-            return await check_user(username)
-        elif request.method == "POST":
-            return await add_user(username)
-        elif request.method == "DELETE":
-            return await delete_user(username)
-        elif request.method == "PATCH":
-            return await modify_user(username)
+        @retry(db_name)
+        async def wrapped():
+            username_stripped = username.strip()
+            if request.method == "GET":
+                return await check_user(username_stripped)
+            elif request.method == "POST":
+                return await add_user(username_stripped)
+            elif request.method == "DELETE":
+                return await delete_user(username_stripped)
+            elif request.method == "PATCH":
+                return await modify_user(username_stripped)
+        return wrapped()
 
-    @retry(db_name)
     async def check_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -289,7 +292,6 @@ def init(app):
                 row = await acurs.fetchone()
                 return jsonify({"name": row[0]})
 
-    @retry(db_name)
     async def add_user(name):
         data = await request.json
         password = str(data.get("password", ""))
@@ -310,7 +312,6 @@ def init(app):
                 success = acurs.rowcount
         return jsonify({"name": name}) if success else ("Invalid", 400)
 
-    @retry(db_name)
     async def delete_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -327,40 +328,44 @@ def init(app):
         return jsonify({"name": name}) if res else ("Invalid", 400)
 
     @app.route("/pages/number/<int:page_number>/", subdomain=subdomain)
-    @retry(db_name)
     async def get_page_by_number(page_number):
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT id, name, file_name, rating_ct FROM pages WHERE id = %s",
-                    (page_number,),
-                )
-                return (
-                    jsonify(
-                        {
-                            "page_number": record[0],
-                            "name": record[1],
-                            "file_name": record[2],
-                            "rating_ct": record[3],
-                        }
+        @retry(db_name)
+        async def wrapped():
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        "SELECT id, name, file_name, rating_ct FROM pages WHERE id = %s",
+                        (page_number,),
                     )
-                    if (record := await acurs.fetchone()) is not None
-                    else ("Page not found", 404)
-                )
+                    return (
+                        jsonify(
+                            {
+                                "page_number": record[0],
+                                "name": record[1],
+                                "file_name": record[2],
+                                "rating_ct": record[3],
+                            }
+                        )
+                        if (record := await acurs.fetchone()) is not None
+                        else ("Page not found", 404)
+                    )
+        return wrapped()
 
     @app.route("/pages/number/<int:page_number>/link", subdomain=subdomain)
-    @retry(db_name)
     async def redirect_page_by_number(page_number):
-        protocol = "https" if STATIC_IS_HTTPS else "http"
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    "SELECT file_name FROM pages WHERE id = %s", (page_number,)
-                )
-                return (
-                    redirect(
-                        f"{protocol}://{STATIC_SITE_NAME}/astroview/pages/{record[0]}"
+        @retry(db_name)
+        async def wrapped():
+            protocol = "https" if STATIC_IS_HTTPS else "http"
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        "SELECT file_name FROM pages WHERE id = %s", (page_number,)
                     )
-                    if (record := await acurs.fetchone()) is not None
-                    else ("Page not found", 404)
-                )
+                    return (
+                        redirect(
+                            f"{protocol}://{STATIC_SITE_NAME}/astroview/pages/{record[0]}"
+                        )
+                        if (record := await acurs.fetchone()) is not None
+                        else ("Page not found", 404)
+                    )
+        return wrapped()

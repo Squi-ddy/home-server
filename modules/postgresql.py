@@ -27,7 +27,7 @@ def retry(db_name):
             for x in range(cls._reconnectTries):
                 print(x, cls._reconnectTries)
                 try:
-                    return fn(*args, **kw)
+                    return await fn(*args, **kw)
                 except (psycopg.InterfaceError, psycopg.OperationalError) as e:
                     print("Database Connection Error")
                     print("Reinitialising...")
@@ -39,7 +39,7 @@ def retry(db_name):
                             dbname={db_name}
                         """
                     )
-                    return fn(*args, **kw)
+                    return await fn(*args, **kw)
 
         return wrapper
 
