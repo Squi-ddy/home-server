@@ -22,7 +22,7 @@ async def get_pool(db_name):
 
 def retry(db_name):
     def decorator(fn):
-        def wrapper(*args, **kw):
+        async def wrapper(*args, **kw):
             cls = args[0]
             for x in range(cls._reconnectTries):
                 print(x, cls._reconnectTries)

@@ -57,7 +57,6 @@ async def modify_password(name, password):
     return bool(success)
 
 
-@retry(db_name)
 async def add_money(name, money):
     try:
         money = int(money)
@@ -102,95 +101,94 @@ def process_time(to_process):
 def init(app):
     @app.route("/products/", subdomain=subdomain)
     async def get_products():
-        category = request.args.get("category", default=None)
-        result = get_products_from_db(category)
-        return jsonify(result)
-
-    @retry(db_name)
-    async def get_products_from_db(category):
-        result = []
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    """
-                    SELECT
-                        product_id,
-                        name,
-                        category,
-                        preview,
-                        price,
-                        rating,
-                        rating_ct
-                    FROM products
-                    WHERE category = COALESCE(%s, category)
-                    """,
-                    (category,),
-                )
-                async for record in acurs:
-                    result.append(
-                        {
-                            "id": record[0],
-                            "name": record[1],
-                            "category": record[2],
-                            "preview": record[3],
-                            "price": record[4],
-                            "rating": {"total": record[5], "count": record[6]},
-                        }
+        @retry(db_name)
+        async def wrapped():
+            category = request.args.get("category", default=None)
+            result = []
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        """
+                        SELECT
+                            product_id,
+                            name,
+                            category,
+                            preview,
+                            price,
+                            rating,
+                            rating_ct
+                        FROM products
+                        WHERE category = COALESCE(%s, category)
+                        """,
+                        (category,),
                     )
-        return result
+                    async for record in acurs:
+                        result.append(
+                            {
+                                "id": record[0],
+                                "name": record[1],
+                                "category": record[2],
+                                "preview": record[3],
+                                "price": record[4],
+                                "rating": {"total": record[5], "count": record[6]},
+                            }
+                        )
+            return jsonify(result)
+
+        return await wrapped()
 
     @app.route("/products/<string:product_id>/", subdomain=subdomain)
     async def get_product_by_id(product_id):
-        return get_product_from_db_by_id(product_id)
+        @retry(db_name)
+        async def wrapped():
+            async with (await get_pool(db_name)).connection() as conn:
+                async with conn.cursor() as acurs:
+                    await acurs.execute(
+                        """
+                        SELECT
+                            product_id,
+                            category,
+                            name,
+                            description,
+                            company,
+                            price,
+                            temp,
+                            size,
+                            country,
+                            expiry,
+                            stock,
+                            preview,
+                            images,
+                            rating,
+                            rating_ct
+                        FROM products
+                        WHERE product_id = %s
+                        """,
+                        (product_id,),
+                    )
+                    if acurs.rowcount < 1:
+                        return "No such product", 404
+                    record = await acurs.fetchone()
+                    return jsonify(
+                        {
+                            "id": record[0],
+                            "category": record[1],
+                            "name": record[2],
+                            "description": record[3],
+                            "company": record[4],
+                            "price": record[5],
+                            "temperature": record[6],
+                            "size": record[7],
+                            "country": record[8],
+                            "expiry": process_date(record[9]),
+                            "stock": record[10],
+                            "preview": record[11],
+                            "images": record[12],
+                            "rating": {"total": record[13], "count": record[14]},
+                        }
+                    )
 
-    @retry(db_name)
-    async def get_product_from_db_by_id(product_id):
-        async with (await get_pool(db_name)).connection() as conn:
-            async with conn.cursor() as acurs:
-                await acurs.execute(
-                    """
-                    SELECT
-                        product_id,
-                        category,
-                        name,
-                        description,
-                        company,
-                        price,
-                        temp,
-                        size,
-                        country,
-                        expiry,
-                        stock,
-                        preview,
-                        images,
-                        rating,
-                        rating_ct
-                    FROM products
-                    WHERE product_id = %s
-                    """,
-                    (product_id,),
-                )
-                if acurs.rowcount < 1:
-                    return "No such product", 404
-                record = await acurs.fetchone()
-                return jsonify(
-                    {
-                        "id": record[0],
-                        "category": record[1],
-                        "name": record[2],
-                        "description": record[3],
-                        "company": record[4],
-                        "price": record[5],
-                        "temperature": record[6],
-                        "size": record[7],
-                        "country": record[8],
-                        "expiry": process_date(record[9]),
-                        "stock": record[10],
-                        "preview": record[11],
-                        "images": record[12],
-                        "rating": {"total": record[13], "count": record[14]},
-                    }
-                )
+        return await wrapped()
 
     @app.route(
         "/products/<string:product_id>/ratings/",
@@ -213,7 +211,7 @@ def init(app):
             elif request.method == "POST":
                 return await post_rating(product_id)
 
-        return wrapped(product_id)
+        return await wrapped(product_id)
 
     async def get_ratings(product_id):
         results = {"reviews": []}
@@ -301,17 +299,20 @@ def init(app):
         methods=["GET", "PATCH", "POST", "DELETE"],
     )
     async def user_action(username):
-        username = username.strip()
-        if request.method == "GET":
-            return check_user(username)
-        elif request.method == "POST":
-            return add_user(username)
-        elif request.method == "DELETE":
-            return delete_user(username)
-        elif request.method == "PATCH":
-            return modify_user(username)
+        @retry(db_name)
+        async def wrapped():
+            username_stripped = username.strip()
+            if request.method == "GET":
+                return await check_user(username_stripped)
+            elif request.method == "POST":
+                return await add_user(username_stripped)
+            elif request.method == "DELETE":
+                return await delete_user(username_stripped)
+            elif request.method == "PATCH":
+                return await modify_user(username_stripped)
 
-    @retry(db_name)
+        return await wrapped()
+
     async def check_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -324,7 +325,6 @@ def init(app):
                 row = await acurs.fetchone()
                 return jsonify({"name": row[0], "balance": row[1]})
 
-    @retry(db_name)
     async def add_user(name):
         data = await request.json
         password = str(data.get("password", ""))
@@ -345,7 +345,6 @@ def init(app):
                 success = acurs.rowcount
         return jsonify({"name": name, "balance": 0}) if success else ("Invalid", 400)
 
-    @retry(db_name)
     async def delete_user(name):
         resp = await check_password()
         if resp is None or resp != name:
@@ -355,7 +354,6 @@ def init(app):
                 await acurs.execute("DELETE FROM users WHERE name=%s", (name,))
                 return ("", 204) if acurs.rowcount else ("Invalid", 400)
 
-    @retry(db_name)
     async def modify_user(name):
         data = await request.json
         password = data.get("password", "")
@@ -425,7 +423,7 @@ def init(app):
             receipt = {"total": total, "balance": wallet - total, "order": data}
             return jsonify(receipt)
 
-        return wrapped(username)
+        return await wrapped(username)
 
     @app.route("/categories/", subdomain=subdomain)
     async def get_categories():
@@ -439,7 +437,7 @@ def init(app):
                         result.append({"short_name": record[0], "full_name": record[1]})
             return jsonify(result)
 
-        return wrapped()
+        return await wrapped()
 
     @app.route("/images/<string:image_name>/", subdomain=subdomain)
     async def redir_image(image_name):

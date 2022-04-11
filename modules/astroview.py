@@ -104,7 +104,7 @@ def init(app):
             elif request.method == "POST":
                 return await post_page_rating(page_number)
 
-        return wrapped()
+        return await wrapped()
 
     async def get_page_ratings(page_number):
         results = []
@@ -179,7 +179,7 @@ def init(app):
             elif request.method == "POST":
                 return await post_star_rating(star_number)
 
-        return wrapped()
+        return await wrapped()
 
     async def get_star_ratings(star_number):
         results = []
@@ -264,7 +264,7 @@ def init(app):
 
             return jsonify(results)
 
-        return wrapped()
+        return await wrapped()
 
     @app.route(
         "/users/<string:username>/",
@@ -284,7 +284,7 @@ def init(app):
             elif request.method == "PATCH":
                 return await modify_user(username_stripped)
 
-        return wrapped()
+        return await wrapped()
 
     async def check_user(name):
         resp = await check_password()
@@ -354,7 +354,7 @@ def init(app):
                         else ("Page not found", 404)
                     )
 
-        return wrapped()
+        return await wrapped()
 
     @app.route("/pages/number/<int:page_number>/link", subdomain=subdomain)
     async def redirect_page_by_number(page_number):
@@ -374,4 +374,4 @@ def init(app):
                         else ("Page not found", 404)
                     )
 
-        return wrapped()
+        return await wrapped()
