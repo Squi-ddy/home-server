@@ -23,23 +23,20 @@ async def get_pool(db_name):
 def retry(db_name):
     def decorator(fn):
         async def wrapper(*args, **kw):
-            cls = args[0]
-            for x in range(cls._reconnectTries):
-                print(x, cls._reconnectTries)
-                try:
-                    return await fn(*args, **kw)
-                except (psycopg.InterfaceError, psycopg.OperationalError) as e:
-                    print("Database Connection Error")
-                    print("Reinitialising...")
-                    pools[db_name] = AsyncConnectionPool(
-                        f"""
-                            user=postgres
-                            password={DATABASE_PASSWORD}
-                            host={DATABASE_URL}
-                            dbname={db_name}
-                        """
-                    )
-                    return await fn(*args, **kw)
+            try:
+                return await fn(*args, **kw)
+            except (psycopg.InterfaceError, psycopg.OperationalError):
+                print("Database Connection Error")
+                print("Reinitialising...")
+                pools[db_name] = AsyncConnectionPool(
+                    f"""
+                        user=postgres
+                        password={DATABASE_PASSWORD}
+                        host={DATABASE_URL}
+                        dbname={db_name}
+                    """
+                )
+                return await fn(*args, **kw)
 
         return wrapper
 
